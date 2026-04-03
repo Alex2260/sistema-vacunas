@@ -22,7 +22,7 @@ app.add_middleware(
 
 def get_db():
     return psycopg2.connect(
-        os.getenv("DATABASE_URL"),
+        "postgresql://postgres:IzvxQgTnKurUdcKzJcZheSEByXKsfPGT@centerbeam.proxy.rlwy.net:22486/railway",
         cursor_factory=psycopg2.extras.RealDictCursor
     )
 
