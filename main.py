@@ -22,7 +22,7 @@ app.add_middleware(
 
 def get_db():
     return psycopg2.connect(
-        os.getenv("DATABASE_URL", "postgresql://admin:admin123@localhost:5432/vacunas_db"),
+        os.getenv("DATABASE_URL"),
         cursor_factory=psycopg2.extras.RealDictCursor
     )
 
