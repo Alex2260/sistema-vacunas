@@ -5,10 +5,7 @@ from datetime import date, timedelta
 from typing import Optional
 import psycopg2
 import psycopg2.extras
-import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 
 app = FastAPI(
     title="Sistema de Registro y Control de Vacunas",
@@ -23,8 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GMAIL_USER = "octavio.vazquez@uicui.edu.mx"
-GMAIL_PASSWORD = "yuuowyehphyaosrc"
+RESEND_API_KEY = "re_WwyxYJeC_NXBFs9kgUzsbujGVPvRbkcTt"
+RESEND_FROM = "onboarding@resend.dev"
 
 def get_db():
     return psycopg2.connect(
@@ -34,42 +31,44 @@ def get_db():
 
 def enviar_correo(destinatario: str, nombre: str, vacuna: str, fecha: str):
     try:
-        msg = MIMEMultipart("alternative")
-        msg['Subject'] = f'Recordatorio de Vacuna: {vacuna}'
-        msg['From'] = GMAIL_USER
-        msg['To'] = destinatario
-        cuerpo_texto = f"Hola {nombre}, te recordamos que tienes pendiente tu vacuna: {vacuna} programada para el {fecha}. Por favor acude a tu centro de salud."
-        cuerpo_html = f"""
-        <html><body style="font-family:Arial,sans-serif;padding:20px;">
-            <div style="background:#1F4E79;padding:20px;border-radius:10px;">
-                <h2 style="color:white;">💉 Recordatorio de Vacuna</h2>
-            </div>
-            <div style="padding:20px;border:1px solid #ccc;border-radius:10px;margin-top:10px;">
-                <p>Hola <strong>{nombre}</strong>,</p>
-                <p>Te recordamos que tienes pendiente tu vacuna:</p>
-                <table style="width:100%;border-collapse:collapse;">
-                    <tr style="background:#EBF3FB;">
-                        <td style="padding:10px;border:1px solid #ccc;"><strong>Vacuna</strong></td>
-                        <td style="padding:10px;border:1px solid #ccc;">{vacuna}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:10px;border:1px solid #ccc;"><strong>Fecha</strong></td>
-                        <td style="padding:10px;border:1px solid #ccc;">{fecha}</td>
-                    </tr>
-                </table>
-                <p>Por favor acude a tu centro de salud más cercano.</p>
-                <p style="color:#888;">Sistema de Control de Vacunas</p>
-            </div>
-        </body></html>
-        """
-        msg.attach(MIMEText(cuerpo_texto, "plain"))
-        msg.attach(MIMEText(cuerpo_html, "html"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_USER, GMAIL_PASSWORD)
-            server.send_message(msg)
-        return True
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": RESEND_FROM,
+                "to": [destinatario],
+                "subject": f"Recordatorio de Vacuna: {vacuna}",
+                "html": f"""
+                <html><body style="font-family:Arial,sans-serif;padding:20px;">
+                    <div style="background:#1F4E79;padding:20px;border-radius:10px;">
+                        <h2 style="color:white;">💉 Recordatorio de Vacuna</h2>
+                    </div>
+                    <div style="padding:20px;border:1px solid #ccc;border-radius:10px;margin-top:10px;">
+                        <p>Hola <strong>{nombre}</strong>,</p>
+                        <p>Te recordamos que tienes pendiente tu vacuna:</p>
+                        <table style="width:100%;border-collapse:collapse;">
+                            <tr style="background:#EBF3FB;">
+                                <td style="padding:10px;border:1px solid #ccc;"><strong>Vacuna</strong></td>
+                                <td style="padding:10px;border:1px solid #ccc;">{vacuna}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px;border:1px solid #ccc;"><strong>Fecha</strong></td>
+                                <td style="padding:10px;border:1px solid #ccc;">{fecha}</td>
+                            </tr>
+                        </table>
+                        <p>Por favor acude a tu centro de salud más cercano.</p>
+                        <p style="color:#888;">Sistema de Control de Vacunas</p>
+                    </div>
+                </body></html>
+                """
+            }
+        )
+        return response.status_code == 200
     except Exception as e:
-        print(f"Error enviando correo a {destinatario}: {e}")
+        print(f"Error enviando correo: {e}")
         return False
 
 class Paciente(BaseModel):
