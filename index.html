@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Vacunas – Centro de Salud</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f0f4f8; font-family: 'Segoe UI', sans-serif; }
+    .navbar { background: linear-gradient(135deg, #1a56db, #0e9f6e); }
+    .card { border: none; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); }
+    .card-header { border-radius: 12px 12px 0 0 !important; }
+    .badge-vacuna { background: #e0f2fe; color: #0277bd; padding: 4px 10px; border-radius: 20px; }
+    .historial-item { border-left: 4px solid #1a56db; padding-left: 12px; margin-bottom: 10px; }
+    #resultado { display: none; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-dark mb-4">
+  <div class="container">
+    <span class="navbar-brand fw-bold fs-4">🏥 Sistema de Control de Vacunas</span>
+    <span class="text-white opacity-75">Centro de Salud Digital</span>
+  </div>
+</nav>
+
+<div class="container pb-5">
+  <div class="row g-4">
+
+    <!-- Panel: Consultar Historial -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white py-3">
+          <h5 class="mb-0">🔍 Consultar Historial de Vacunación</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">CURP del Paciente</label>
+            <input type="text" id="curpConsulta" class="form-control form-control-lg text-uppercase"
+                   placeholder="Ej: GOML900101HDFMRN09" maxlength="18">
+          </div>
+          <button class="btn btn-primary w-100" onclick="consultarHistorial()">Consultar Historial</button>
+          <div id="resultado" class="mt-3">
+            <div class="alert alert-info" id="infoPaciente"></div>
+            <div id="listaHistorial"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Registrar Paciente -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header bg-success text-white py-3">
+          <h5 class="mb-0">👤 Registrar Nuevo Paciente</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-12">
+              <input type="text" id="regCurp" class="form-control text-uppercase" placeholder="CURP *" maxlength="18">
+            </div>
+            <div class="col-6">
+              <input type="text" id="regNombre" class="form-control" placeholder="Nombre(s) *">
+            </div>
+            <div class="col-6">
+              <input type="text" id="regApellidos" class="form-control" placeholder="Apellidos *">
+            </div>
+            <div class="col-12">
+              <label class="form-label small text-muted">Fecha de Nacimiento *</label>
+              <input type="date" id="regFecha" class="form-control">
+            </div>
+            <div class="col-6">
+              <input type="email" id="regEmail" class="form-control" placeholder="Correo electrónico">
+            </div>
+            <div class="col-6">
+              <input type="tel" id="regTelefono" class="form-control" placeholder="Teléfono">
+            </div>
+          </div>
+          <button class="btn btn-success w-100 mt-3" onclick="registrarPaciente()">Registrar Paciente</button>
+          <div id="msgRegistro" class="mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Registrar Vacuna -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-warning text-dark py-3">
+          <h5 class="mb-0">💉 Registrar Vacuna Aplicada</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-12">
+              <input type="text" id="vacCurp" class="form-control text-uppercase" placeholder="CURP del Paciente *" maxlength="18">
+            </div>
+            <div class="col-md-8">
+              <select id="vacVacunaId" class="form-select">
+                <option value="">Seleccionar Vacuna *</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <input type="number" id="vacDosis" class="form-control" placeholder="Dosis #" min="1" max="10">
+            </div>
+            <div class="col-6">
+              <input type="text" id="vacCentro" class="form-control" placeholder="Centro de Salud *">
+            </div>
+            <div class="col-6">
+              <input type="text" id="vacLote" class="form-control" placeholder="Lote (opcional)">
+            </div>
+          </div>
+          <button class="btn btn-warning w-100 mt-3" onclick="aplicarVacuna()">Registrar Aplicación</button>
+          <div id="msgVacuna" class="mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Alertas -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-danger text-white py-3">
+          <h5 class="mb-0">🔔 Próximas Vacunas Pendientes</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <input type="text" id="curpAlertas" class="form-control text-uppercase" placeholder="CURP del Paciente" maxlength="18">
+          </div>
+          <button class="btn btn-danger w-100 mb-3" onclick="verProximas()">Ver Próximas Dosis</button>
+          <div id="listaAlertas"></div>
+          <hr>
+          <button class="btn btn-outline-danger w-100" onclick="enviarAlertas()">
+            📧 Enviar Alertas del Sistema (Admin)
+          </button>
+          <div id="msgAlertas" class="mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+
+// Cargar catálogo de vacunas al inicio
+async function cargarCatalogo() {
+  try {
+    const res = await fetch(`${API}/vacunas/catalogo`);
+    const data = await res.json();
+    const select = document.getElementById('vacVacunaId');
+    data.vacunas.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = `${v.nombre} (${v.dosis_total} dosis)`;
+      select.appendChild(opt);
+    });
+  } catch(e) {
+    console.error('API no disponible, inicia Docker primero');
+  }
+}
+
+async function consultarHistorial() {
+  const curp = document.getElementById('curpConsulta').value.trim().toUpperCase();
+  if (curp.length !== 18) return alert('La CURP debe tener 18 caracteres');
+  try {
+    const res = await fetch(`${API}/historial/${curp}`);
+    const data = await res.json();
+    if (!res.ok) return alert(data.detail);
+    document.getElementById('infoPaciente').innerHTML =
+      `<strong>Paciente:</strong> ${data.paciente} | <strong>CURP:</strong> ${data.curp} | <strong>Total vacunas:</strong> ${data.total_vacunas}`;
+    let html = '';
+    if (data.historial.length === 0) {
+      html = '<p class="text-muted">No hay vacunas registradas aún.</p>';
+    } else {
+      data.historial.forEach(h => {
+        html += `<div class="historial-item mb-2">
+          <strong>${h.vacuna}</strong> – Dosis ${h.numero_dosis}/${h.dosis_total}<br>
+          <small class="text-muted">📅 ${h.fecha_aplicacion} | 🏥 ${h.centro_salud}</small>
+        </div>`;
+      });
+    }
+    document.getElementById('listaHistorial').innerHTML = html;
+    document.getElementById('resultado').style.display = 'block';
+  } catch(e) { alert('Error de conexión con la API'); }
+}
+
+async function registrarPaciente() {
+  const body = {
+    curp: document.getElementById('regCurp').value.trim().toUpperCase(),
+    nombre: document.getElementById('regNombre').value.trim(),
+    apellidos: document.getElementById('regApellidos').value.trim(),
+    fecha_nacimiento: document.getElementById('regFecha').value,
+    email: document.getElementById('regEmail').value.trim(),
+    telefono: document.getElementById('regTelefono').value.trim()
+  };
+  if (!body.curp || !body.nombre || !body.apellidos || !body.fecha_nacimiento)
+    return alert('Completa los campos obligatorios (*)');
+  try {
+    const res = await fetch(`${API}/pacientes/registro`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    document.getElementById('msgRegistro').innerHTML =
+      `<div class="alert alert-${res.ok ? 'success' : 'danger'}">${data.mensaje || data.detail}</div>`;
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function aplicarVacuna() {
+  const body = {
+    curp: document.getElementById('vacCurp').value.trim().toUpperCase(),
+    vacuna_id: parseInt(document.getElementById('vacVacunaId').value),
+    numero_dosis: parseInt(document.getElementById('vacDosis').value),
+    centro_salud: document.getElementById('vacCentro').value.trim(),
+    lote: document.getElementById('vacLote').value.trim()
+  };
+  if (!body.curp || !body.vacuna_id || !body.numero_dosis || !body.centro_salud)
+    return alert('Completa todos los campos obligatorios');
+  try {
+    const res = await fetch(`${API}/vacunas/aplicar`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    document.getElementById('msgVacuna').innerHTML =
+      `<div class="alert alert-${res.ok ? 'success' : 'danger'}">${data.mensaje || data.detail}</div>`;
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function verProximas() {
+  const curp = document.getElementById('curpAlertas').value.trim().toUpperCase();
+  if (!curp) return alert('Ingresa una CURP');
+  try {
+    const res = await fetch(`${API}/proximas/${curp}`);
+    const data = await res.json();
+    if (!res.ok) return alert(data.detail);
+    let html = '';
+    if (data.proximas_dosis.length === 0) {
+      html = '<p class="text-muted">No hay dosis pendientes 🎉</p>';
+    } else {
+      data.proximas_dosis.forEach(d => {
+        const urgente = d.dias_restantes <= 7;
+        html += `<div class="alert alert-${urgente ? 'danger' : 'warning'} py-2">
+          💉 <strong>${d.vacuna}</strong><br>
+          📅 Fecha: ${d.fecha_programada} | ${d.dias_restantes > 0 ? `En ${d.dias_restantes} días` : '¡HOY!'}
+        </div>`;
+      });
+    }
+    document.getElementById('listaAlertas').innerHTML = html;
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function enviarAlertas() {
+  try {
+    const res = await fetch(`${API}/alertas/enviar`, { method: 'POST' });
+    const data = await res.json();
+    document.getElementById('msgAlertas').innerHTML =
+      `<div class="alert alert-info">${data.mensaje} – ${data.alertas_enviadas} alertas procesadas</div>`;
+  } catch(e) { alert('Error de conexión'); }
+}
+
+cargarCatalogo();
+</script>
+</body>
+</html>
