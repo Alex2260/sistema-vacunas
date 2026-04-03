@@ -178,7 +178,7 @@ def proximas_vacunas(curp: str):
     cur = conn.cursor()
     cur.execute("""
         SELECT v.nombre as vacuna, a.fecha_programada,
-               EXTRACT(DAY FROM a.fecha_programada - CURRENT_DATE)::int as dias_restantes
+               (a.fecha_programada - CURRENT_DATE) as dias_restantes
         FROM alertas a
         JOIN vacunas v ON a.vacuna_id = v.id
         WHERE a.curp = %s AND a.enviada = false
