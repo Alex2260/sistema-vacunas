@@ -6,6 +6,9 @@ from typing import Optional
 import psycopg2
 import psycopg2.extras
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = FastAPI(
     title="Sistema de Registro y Control de Vacunas",
@@ -20,13 +23,55 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+GMAIL_USER = "octavio.vazquez@uicui.edu.mx"
+GMAIL_PASSWORD = "yuuowyehphyaosrc"
+
 def get_db():
     return psycopg2.connect(
         "postgresql://postgres:IzvxQgTnKurUdcKzJcZheSEByXKsfPGT@centerbeam.proxy.rlwy.net:22486/railway",
         cursor_factory=psycopg2.extras.RealDictCursor
     )
 
-# ── Modelos ──────────────────────────────────────────────
+def enviar_correo(destinatario: str, nombre: str, vacuna: str, fecha: str):
+    try:
+        msg = MIMEMultipart("alternative")
+        msg['Subject'] = f'Recordatorio de Vacuna: {vacuna}'
+        msg['From'] = GMAIL_USER
+        msg['To'] = destinatario
+        cuerpo_texto = f"Hola {nombre}, te recordamos que tienes pendiente tu vacuna: {vacuna} programada para el {fecha}. Por favor acude a tu centro de salud."
+        cuerpo_html = f"""
+        <html><body style="font-family:Arial,sans-serif;padding:20px;">
+            <div style="background:#1F4E79;padding:20px;border-radius:10px;">
+                <h2 style="color:white;">💉 Recordatorio de Vacuna</h2>
+            </div>
+            <div style="padding:20px;border:1px solid #ccc;border-radius:10px;margin-top:10px;">
+                <p>Hola <strong>{nombre}</strong>,</p>
+                <p>Te recordamos que tienes pendiente tu vacuna:</p>
+                <table style="width:100%;border-collapse:collapse;">
+                    <tr style="background:#EBF3FB;">
+                        <td style="padding:10px;border:1px solid #ccc;"><strong>Vacuna</strong></td>
+                        <td style="padding:10px;border:1px solid #ccc;">{vacuna}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px;border:1px solid #ccc;"><strong>Fecha</strong></td>
+                        <td style="padding:10px;border:1px solid #ccc;">{fecha}</td>
+                    </tr>
+                </table>
+                <p>Por favor acude a tu centro de salud más cercano.</p>
+                <p style="color:#888;">Sistema de Control de Vacunas</p>
+            </div>
+        </body></html>
+        """
+        msg.attach(MIMEText(cuerpo_texto, "plain"))
+        msg.attach(MIMEText(cuerpo_html, "html"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error enviando correo a {destinatario}: {e}")
+        return False
+
 class Paciente(BaseModel):
     curp: str
     nombre: str
@@ -42,7 +87,6 @@ class AplicacionVacuna(BaseModel):
     centro_salud: str
     lote: Optional[str] = None
 
-# ── Endpoints ────────────────────────────────────────────
 @app.get("/")
 def root():
     return {"mensaje": "Sistema de Vacunas API activo", "version": "1.0.0"}
@@ -78,22 +122,18 @@ def consultar_paciente(curp: str):
 def aplicar_vacuna(aplicacion: AplicacionVacuna):
     conn = get_db()
     cur = conn.cursor()
-    # Verificar que el paciente existe
     cur.execute("SELECT curp FROM pacientes WHERE curp = %s", (aplicacion.curp.upper(),))
     if not cur.fetchone():
         raise HTTPException(status_code=404, detail="Paciente no registrado, registre primero")
-    # Obtener datos de la vacuna
     cur.execute("SELECT * FROM vacunas WHERE id = %s", (aplicacion.vacuna_id,))
     vacuna = cur.fetchone()
     if not vacuna:
         raise HTTPException(status_code=404, detail="Vacuna no encontrada en el catálogo")
-    # Registrar aplicación
     cur.execute("""
         INSERT INTO aplicaciones (curp, vacuna_id, numero_dosis, centro_salud, lote)
         VALUES (%s, %s, %s, %s, %s)
     """, (aplicacion.curp.upper(), aplicacion.vacuna_id, aplicacion.numero_dosis,
           aplicacion.centro_salud, aplicacion.lote))
-    # Programar alerta para siguiente dosis si aplica
     if aplicacion.numero_dosis < vacuna["dosis_total"] and vacuna["intervalo_dias"] > 0:
         fecha_siguiente = date.today() + timedelta(days=vacuna["intervalo_dias"])
         cur.execute("""
@@ -112,12 +152,10 @@ def aplicar_vacuna(aplicacion: AplicacionVacuna):
 def consultar_historial(curp: str):
     conn = get_db()
     cur = conn.cursor()
-    # Verificar paciente
     cur.execute("SELECT nombre, apellidos FROM pacientes WHERE curp = %s", (curp.upper(),))
     paciente = cur.fetchone()
     if not paciente:
         raise HTTPException(status_code=404, detail="CURP no encontrada en el sistema")
-    # Obtener historial
     cur.execute("""
         SELECT v.nombre as vacuna, a.numero_dosis, a.fecha_aplicacion,
                a.centro_salud, a.lote, v.dosis_total
@@ -161,21 +199,29 @@ def enviar_alertas():
         JOIN pacientes p ON a.curp = p.curp
         JOIN vacunas v ON a.vacuna_id = v.id
         WHERE a.enviada = false
-        AND a.fecha_programada <= CURRENT_DATE + INTERVAL '7 days'
+        AND a.fecha_programada <= CURRENT_DATE + INTERVAL '30 days'
     """)
     alertas = cur.fetchall()
     enviadas = 0
+    errores = 0
     for alerta in alertas:
-        # En producción aquí se integraría SMTP o SendGrid
-        print(f"[ALERTA] Para: {alerta['email']} | "
-              f"Paciente: {alerta['nombre']} {alerta['apellidos']} | "
-              f"Vacuna: {alerta['vacuna']} | "
-              f"Fecha: {alerta['fecha_programada']}")
-        cur.execute("UPDATE alertas SET enviada=true WHERE id=%s", (alerta["id"],))
-        enviadas += 1
+        if alerta["email"]:
+            exito = enviar_correo(
+                destinatario=alerta["email"],
+                nombre=f"{alerta['nombre']} {alerta['apellidos']}",
+                vacuna=alerta["vacuna"],
+                fecha=str(alerta["fecha_programada"])
+            )
+            if exito:
+                cur.execute("UPDATE alertas SET enviada=true WHERE id=%s", (alerta["id"],))
+                enviadas += 1
+            else:
+                errores += 1
+        else:
+            errores += 1
     conn.commit()
     conn.close()
-    return {"mensaje": f"Proceso completado", "alertas_enviadas": enviadas}
+    return {"mensaje": "Proceso completado", "alertas_enviadas": enviadas, "errores": errores}
 
 @app.get("/vacunas/catalogo", summary="Ver catálogo de vacunas disponibles")
 def catalogo_vacunas():
